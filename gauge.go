@@ -76,6 +76,7 @@ var updateAll = flag.Bool([]string{"-update-all"}, false, "Updates all the insta
 var checkUpdates = flag.Bool([]string{"-check-updates"}, false, "Checks for Gauge and plugins updates. Eg: gauge --check-updates")
 var listTemplates = flag.Bool([]string{"-list-templates"}, false, "Lists all the Gauge templates available. Eg: gauge --list-templates")
 var machineReadable = flag.Bool([]string{"-machine-readable"}, false, "Used with `--version` to produce JSON output of currently installed Gauge and plugin versions. e.g: gauge --version --machine-readable")
+var graph = flag.String([]string{"-graph"}, "", "")
 
 func main() {
 	flag.Parse()
@@ -133,6 +134,8 @@ func main() {
 			formatter.FormatSpecFilesIn(*specFilesToFormat)
 		} else if *validate {
 			validation.Validate(flag.Args())
+		} else if *graph != "" {
+			prepareGraph(*graph)
 		} else {
 			exitCode := execution.ExecuteSpecs(specDirs)
 			os.Exit(exitCode)

@@ -1,0 +1,96 @@
+<html>
+<head>
+    <style type="text/css">
+        .start {
+            width: 95%;
+            border: 5px solid lightgray;
+        }
+    </style>
+    <link href="vis.min.css" rel="stylesheet" type="text/css"/>
+    <script src="vis.min.js"></script>
+    <script src="data.js"></script>
+</head>
+<body>
+<script type="text/javascript">
+
+    var opts = {
+        manipulation: false,
+        height: '100%',
+        width: '100%',
+        layout: {
+            hierarchical: {
+                enabled: true,
+                levelSeparation: 300
+            }
+        },
+        physics: {
+            hierarchicalRepulsion: {
+                nodeDistance: 300
+            }
+        }
+    };
+
+    function makeid() {
+        var text = "";
+        var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+        for (var i = 0; i < 5; i++)
+            text += possible.charAt(Math.floor(Math.random() * possible.length));
+
+        return text;
+    }
+
+
+    var addNodes = function (node, nodes, parent, edges, parentId, level) {
+        var id = makeid();
+        var pNode = {
+            'level': level,
+            'id': id,
+            'size': 150,
+            'label': "",
+            'color': "#FFCFCF",
+            'shape': 'ellipse',
+            'font': {'face': 'monospace', 'align': 'left', 'size': 20},
+            'physics': true,
+            'title': node.parsedText
+        };
+        if (parentId)
+            edges.push({
+                'from': parentId,
+                'to': id,
+                'arrows': 'to',
+                'physics': true,
+                'smooth': {'type': 'cubicBezier'}
+            });
+        else {
+            pNode['shape'] = 'box';
+            pNode['borderWidth'] = 5;
+            pNode['font']['size'] = 40;
+        }
+        nodes.push(pNode);
+        if (node.nodes.length == 0)
+            return;
+        level++;
+        node.nodes.forEach(function (n) {
+            addNodes(n, nodes, node.parsedText, edges, id, level)
+        })
+    };
+
+    var divs = '';
+    nodeData.forEach(function (e, i) {
+        divs += '<p><div class="start" id="start' + i + '"></div><br /></p>'
+    });
+    document.body.innerHTML += divs;
+
+    nodeData.forEach(function (e, i) {
+        var nodes = [];
+        var edges = [];
+        addNodes(e, nodes, "", edges, null, 1);
+        var container = document.getElementById('start' + i);
+        var data = {'nodes': nodes, 'edges': edges};
+        var gph = new vis.Network(container, data, opts);
+    })
+
+</script>
+</body>
+</html>
