@@ -18,14 +18,14 @@
 package main
 
 import (
-	"github.com/getgauge/gauge/parser"
-	"fmt"
-	"github.com/getgauge/gauge/gauge"
 	"encoding/json"
-	"strings"
-	"github.com/getgauge/gauge-ruby/tmp/src/github.com/getgauge/common"
+	"fmt"
 	"os"
 	"path"
+
+	"github.com/getgauge/common"
+	"github.com/getgauge/gauge/gauge"
+	"github.com/getgauge/gauge/parser"
 )
 
 type node struct {
@@ -37,21 +37,13 @@ type node struct {
 
 func (n node) getJSON() string {
 	if len(n.nodes) == 0 {
-		return fmt.Sprintf(`{"text": "%s", "parsedText": "%s", "times": %d, "nodes": %s}`,
-			strings.Replace(n.stepText, "\"", "\\\"", -1),
-			n.parsedStepText,
-			n.duplicates,
-			"[]")
+		return fmt.Sprintf(`{"text": "%s", "parsedText": "%s", "times": %d, "nodes": %s}`, "", n.parsedStepText, n.duplicates, "[]")
 	} else {
 		json := ""
 		for _, node := range n.nodes {
 			json = json + "," + node.getJSON()
 		}
-		return fmt.Sprintf(`{"text": "%s", "parsedText": "%s", "times": %d, "nodes": %s}`,
-			strings.Replace(n.stepText, "\"", "\\\"", -1),
-			n.parsedStepText,
-			n.duplicates,
-			"[" + json[1:] + "]")
+		return fmt.Sprintf(`{"text": "%s", "parsedText": "%s", "times": %d, "nodes": %s}`, "", n.parsedStepText, n.duplicates, "["+json[1:]+"]")
 	}
 }
 
@@ -107,7 +99,7 @@ func createGraphFor(stepsIndex int, steps []*gauge.Step, nodeIndex int, nodes []
 	} else {
 		nodes[nodeIndex].nodes[nIndex].duplicates++
 	}
-	if stepsIndex < len(steps) - 1 {
+	if stepsIndex < len(steps)-1 {
 		stepsIndex++
 		createGraphFor(stepsIndex, steps, nIndex, nodes[nodeIndex].nodes)
 	}
@@ -127,7 +119,7 @@ func printNodes(nodes []node, indent string) {
 	for _, node := range nodes {
 		fmt.Println(indent, node.parsedStepText, " : ", node.duplicates)
 		if len(node.nodes) > 0 {
-			printNodes(node.nodes, indent + "\t")
+			printNodes(node.nodes, indent+"\t")
 		}
 	}
 }
