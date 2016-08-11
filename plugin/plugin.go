@@ -45,6 +45,7 @@ import (
 
 const (
 	executionScope          = "execution"
+	setupScope              = "setup"
 	docScope                = "documentation"
 	pluginConnectionPortEnv = "plugin_connection_port"
 )
@@ -248,20 +249,21 @@ func startPluginsForExecution(manifest *manifest.Manifest) (*Handler, []string) 
 			warnings = append(warnings, fmt.Sprintf("Compatible %s plugin version to current Gauge version %s not found", pd.Name, version.CurrentGaugeVersion))
 			continue
 		}
-		if isPluginValidFor(pd, executionScope) {
+
+		for _, scope := range getPluginScopes(pd) {
 			gaugeConnectionHandler, err := conn.NewGaugeConnectionHandler(0, nil)
 			if err != nil {
 				warnings = append(warnings, err.Error())
 				continue
 			}
 			envProperties[pluginConnectionPortEnv] = strconv.Itoa(gaugeConnectionHandler.ConnectionPortNumber())
-			err = SetEnvForPlugin(executionScope, pd, manifest, envProperties)
+			err = SetEnvForPlugin(scope, pd, manifest, envProperties)
 			if err != nil {
 				warnings = append(warnings, fmt.Sprintf("Error setting environment for plugin %s %s. %s", pd.Name, pd.Version, err.Error()))
 				continue
 			}
 
-			plugin, err := StartPlugin(pd, executionScope)
+			plugin, err := StartPlugin(pd, scope)
 			if err != nil {
 				warnings = append(warnings, fmt.Sprintf("Error starting plugin %s %s. %s", pd.Name, pd.Version, err.Error()))
 				continue
@@ -275,7 +277,6 @@ func startPluginsForExecution(manifest *manifest.Manifest) (*Handler, []string) 
 			plugin.connection = pluginConnection
 			handler.addPlugin(pluginID, plugin)
 		}
-
 	}
 	return handler, warnings
 }
@@ -314,6 +315,19 @@ func isPluginValidFor(pd *pluginDescriptor, scope string) bool {
 		}
 	}
 	return false
+}
+
+// getPluginScopes returns the execution and/or setup scopes if applicable to given pluginDes
+func getPluginScopes(pd *pluginDescriptor) []string {
+	var scopes []string
+	for _, s := range pd.Scope {
+		if strings.ToLower(s) == setupScope {
+			scopes = append(scopes, setupScope)
+		} else if strings.ToLower(s) == executionScope {
+			scopes = append(scopes, executionScope)
+		}
+	}
+	return scopes
 }
 
 func (handler *Handler) addPlugin(pluginID string, pluginToAdd *plugin) {
