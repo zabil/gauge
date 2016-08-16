@@ -167,3 +167,29 @@ func TestFatalErrorIsThrownIfEnvNotFound(t *testing.T) {
 	}
 	t.Fatalf("Expected: Fatal Error\nGot: Error %v ", err)
 }
+
+func (s *MySuite) TestUnLoadDefaultEnv(c *C) {
+	os.Clearenv()
+	config.ProjectRoot = "_testdata/proj1"
+	LoadEnv("default")
+
+	UnLoadEnv("default")
+
+	c.Assert(os.Getenv("gauge_reports_dir"), Equals, "")
+	c.Assert(os.Getenv("overwrite_reports"), Equals, "")
+	c.Assert(os.Getenv("screenshot_on_failure"), Equals, "")
+	c.Assert(os.Getenv("logs_directory"), Equals, "")
+}
+
+func (s *MySuite) TestUnLoadCustomEnvAnd(c *C) {
+	os.Clearenv()
+	config.ProjectRoot = "_testdata/proj2"
+	LoadEnv("bar")
+
+	UnLoadEnv("bar")
+
+	c.Assert(os.Getenv("gauge_reports_dir"), Equals, "")
+	c.Assert(os.Getenv("overwrite_reports"), Equals, "")
+	c.Assert(os.Getenv("screenshot_on_failure"), Equals, "")
+	c.Assert(os.Getenv("logs_directory"), Equals, "")
+}
