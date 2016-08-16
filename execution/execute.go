@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/getgauge/gauge/config"
+	"github.com/getgauge/gauge/env"
 	"github.com/getgauge/gauge/execution/event"
 	"github.com/getgauge/gauge/execution/rerun"
 	"github.com/getgauge/gauge/execution/result"
@@ -76,7 +77,7 @@ func newExecutionInfo(s *gauge.SpecCollection, r runner.Runner, ph *plugin.Handl
 	}
 }
 
-func ExecuteSpecs(specDirs []string) int {
+func ExecuteSpecs(specDirs, envs []string) int {
 	err := validateFlags()
 	if err != nil {
 		logger.Fatalf(err.Error())
@@ -99,9 +100,25 @@ func ExecuteSpecs(specDirs []string) int {
 	event.InitRegistry()
 	reporter.ListenExecutionEvents()
 	rerun.ListenFailedScenarios()
-	ei := newExecutionInfo(res.SpecCollection, res.Runner, nil, res.ErrMap, InParallel, 0)
-	e := newExecution(ei)
-	return printExecutionStatus(e.run(), res.ErrMap)
+	specs := res.SpecCollection.Specs()
+	var exitCode int
+
+	for _, cEnv := range envs {
+		fmt.Println("Executing specs with env => " + cEnv)
+		env.LoadEnv(cEnv)
+		r := res.Runner
+		if !r.IsProcessRunning() {
+			r = validation.StartAPI()
+		}
+		ei := newExecutionInfo(gauge.NewSpecCollection(specs), r, nil, res.ErrMap, InParallel, 0)
+		e := newExecution(ei)
+		if ec := printExecutionStatus(e.run(), res.ErrMap); ec != 0 {
+			exitCode = ec
+		}
+		env.UnLoadEnv(cEnv)
+	}
+
+	return exitCode
 }
 
 func newExecution(executionInfo *executionInfo) execution {

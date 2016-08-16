@@ -44,9 +44,23 @@ var currentEnv = "default"
 //
 // Finally, all the env vars present in the map are actually set in the shell.
 func LoadEnv(envName string) {
-	initEnvVars(envName)
+	envVars = make(map[string]string)
+	currentEnv = envName
 
-	err := setEnvVars()
+	err := loadEnvDir(currentEnv)
+	if err != nil {
+		logger.Fatalf("Failed to load env. %s", err.Error())
+	}
+
+	if currentEnv != "default" {
+		err1 := loadEnvDir("default")
+		if err1 != nil {
+			logger.Fatalf("Failed to load env. %s", err.Error())
+		}
+	}
+	loadDefaultEnvVars()
+
+	err = setEnvVars()
 	if err != nil {
 		logger.Fatalf("Failed to set env. %s", err.Error())
 	}
@@ -59,29 +73,10 @@ func LoadEnv(envName string) {
 //
 // Finally, all the env vars present in the map are actually unset in the shell.
 func UnLoadEnv(envName string) {
-	initEnvVars(envName)
 	err := unsetEnvVars()
 	if err != nil {
 		logger.Fatalf("Failed to unset env. %s", err.Error())
 	}
-}
-
-func initEnvVars(envName string) {
-	envVars = make(map[string]string)
-	currentEnv = envName
-
-	err := loadEnvDir(currentEnv)
-	if err != nil {
-		logger.Fatalf("Failed to load env. %s", err.Error())
-	}
-
-	if currentEnv != "default" {
-		err := loadEnvDir("default")
-		if err != nil {
-			logger.Fatalf("Failed to load env. %s", err.Error())
-		}
-	}
-	loadDefaultEnvVars()
 }
 
 func loadDefaultEnvVars() {

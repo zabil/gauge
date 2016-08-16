@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/getgauge/common"
@@ -58,7 +59,7 @@ var installAll = flag.Bool([]string{"-install-all"}, false, "Installs all the pl
 var update = flag.String([]string{"-update"}, "", "Updates a plugin. Eg: gauge --update java")
 var pluginVersion = flag.String([]string{"-plugin-version"}, "", "Version of plugin to be installed. This is used with --install or --uninstall flag.")
 var installZip = flag.String([]string{"-file", "f"}, "", "Installs the plugin from zip file. This is used with --install. Eg: gauge --install java -f ZIP_FILE")
-var currentEnv = flag.String([]string{"-env"}, "default", "Specifies the environment. If not specified, default will be used")
+var envs = flag.String([]string{"-env"}, "default", "Specifies the environment. If not specified, default will be used. Multiple environments can be specified by passing a comma-separated value, e.g. gauge --env=chrome,firefox specs")
 var addPlugin = flag.String([]string{"-add-plugin"}, "", "Adds the specified non-language plugin to the current project")
 var pluginArgs = flag.String([]string{"-plugin-args"}, "", "Specified additional arguments to the plugin. This is used together with --add-plugin")
 var specFilesToFormat = flag.String([]string{"-format"}, "", "Formats the specified spec files")
@@ -93,7 +94,6 @@ func main() {
 		fmt.Println(rerunErr)
 		os.Exit(0)
 	}
-	env.LoadEnv(*currentEnv)
 	logger.Initialize(*logLevel)
 	if *gaugeVersion && *machineReadable {
 		printJSONVersion()
@@ -120,20 +120,22 @@ func main() {
 		install.UpdatePlugins()
 	} else if *checkUpdates {
 		install.PrintUpdateInfoWithDetails()
-	} else if *addPlugin != "" {
-		install.AddPluginToProject(*addPlugin, *pluginArgs)
 	} else if *listTemplates {
 		projectInit.ListTemplates()
 	} else if flag.NFlag() == 0 && len(flag.Args()) == 0 {
 		printUsage()
 		os.Exit(0)
 	} else if validGaugeProject {
+		envList := getEnvs()
+		env.LoadEnv(envList[0])
 		var specDirs = []string{common.SpecsDirectoryName}
 		if len(flag.Args()) > 0 {
 			specDirs = flag.Args()
 		}
 		if *refactorSteps != "" {
 			refactorInit(flag.Args())
+		} else if *addPlugin != "" {
+			install.AddPluginToProject(*addPlugin, *pluginArgs)
 		} else if *daemonize {
 			execution.Start()
 			api.RunInBackground(*apiPort, specDirs)
@@ -145,7 +147,7 @@ func main() {
 			gaugeConnectionHandler := api.Start(specDirs)
 			plugin.GenerateDoc(*docs, specDirs, gaugeConnectionHandler.ConnectionPortNumber())
 		} else {
-			exitCode := execution.ExecuteSpecs(specDirs)
+			exitCode := execution.ExecuteSpecs(specDirs, envList)
 			os.Exit(exitCode)
 		}
 	} else {
@@ -231,4 +233,12 @@ func initPackageFlags() {
 	if *distribute != -1 {
 		execution.Strategy = execution.Eager
 	}
+}
+
+func getEnvs() []string {
+	var envList []string
+	for _, e := range strings.Split(*envs, ",") {
+		envList = append(envList, strings.TrimSpace(e))
+	}
+	return envList
 }

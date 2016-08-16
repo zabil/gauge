@@ -97,8 +97,8 @@ func Validate(args []string) {
 	logger.Info("No error found.")
 }
 
-//TODO : duplicate in execute.go. Need to fix runner init.
-func startAPI() runner.Runner {
+//TODO : This should move to api/execute package
+func StartAPI() runner.Runner {
 	sc := api.StartAPI()
 	select {
 	case runner := <-sc.RunnerChan:
@@ -135,7 +135,7 @@ func ValidateSpecs(args []string) *ValidationResult {
 		return NewValidationResult(nil, nil, nil, errs...)
 	}
 	s, specsFailed := parser.ParseSpecs(args, conceptDict)
-	r := startAPI()
+	r := StartAPI()
 	vErrs := newValidator(manifest, s, r, conceptDict).validate()
 	errMap := NewValidationErrMaps()
 	if len(vErrs) > 0 {
