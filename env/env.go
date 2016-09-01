@@ -29,8 +29,9 @@ import (
 )
 
 const (
-	GaugeReportsDir = "gauge_reports_dir"
-	LogsDirectory   = "logs_directory"
+	GaugeReportsDir        = "gauge_reports_dir"
+	LogsDirectory          = "logs_directory"
+	ManualExecutionEnabled = "enable_manual_execution"
 )
 
 var envVars map[string]string
@@ -70,6 +71,7 @@ func LoadEnv(envName string) {
 func loadDefaultEnvVars() {
 	addEnvVar(GaugeReportsDir, "reports")
 	addEnvVar(LogsDirectory, "logs")
+	addEnvVar(ManualExecutionEnabled, "false")
 	addEnvVar("overwrite_reports", "true")
 	addEnvVar("screenshot_on_failure", "true")
 }

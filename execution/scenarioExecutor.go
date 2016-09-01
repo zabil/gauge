@@ -18,8 +18,14 @@
 package execution
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"strings"
 
+	"golang.org/x/crypto/ssh/terminal"
+
+	"github.com/getgauge/gauge/env"
 	"github.com/getgauge/gauge/execution/event"
 	"github.com/getgauge/gauge/execution/result"
 	"github.com/getgauge/gauge/gauge"
@@ -55,11 +61,15 @@ func (e *scenarioExecutor) execute(scenarioResult *result.ScenarioResult, scenar
 	if len(scenario.Steps) == 0 {
 		e.skipSceForError(scenario, scenarioResult)
 	}
-	if _, ok := e.errMap.ScenarioErrs[scenario]; ok {
-		setSkipInfoInResult(scenarioResult, scenario, e.errMap)
-		event.Notify(event.NewExecutionEvent(event.ScenarioStart, scenario, scenarioResult, e.stream, *e.currentExecutionInfo))
-		event.Notify(event.NewExecutionEvent(event.ScenarioEnd, scenario, scenarioResult, e.stream, *e.currentExecutionInfo))
-		return
+	if vErrs, ok := e.errMap.ScenarioErrs[scenario]; ok {
+		for _, vErr := range vErrs {
+			if !vErr.IsUnimplementedError() {
+				setSkipInfoInResult(scenarioResult, scenario, e.errMap)
+				event.Notify(event.NewExecutionEvent(event.ScenarioStart, scenario, scenarioResult, e.stream, *e.currentExecutionInfo))
+				event.Notify(event.NewExecutionEvent(event.ScenarioEnd, scenario, scenarioResult, e.stream, *e.currentExecutionInfo))
+				return
+			}
+		}
 	}
 	event.Notify(event.NewExecutionEvent(event.ScenarioStart, scenario, scenarioResult, e.stream, *e.currentExecutionInfo))
 	defer event.Notify(event.NewExecutionEvent(event.ScenarioEnd, scenario, scenarioResult, e.stream, *e.currentExecutionInfo))
@@ -134,30 +144,66 @@ func (e *scenarioExecutor) notifyAfterScenarioHook(scenarioResult *result.Scenar
 	}
 }
 
+func (e *scenarioExecutor) canExecuteManually() bool {
+	enabled := strings.ToLower(os.Getenv(env.ManualExecutionEnabled)) == "true"
+	return enabled && !InParallel && terminal.IsTerminal(int(os.Stdout.Fd()))
+}
+
 func (e *scenarioExecutor) executeItems(items []*gauge.Step, protoItems []*gauge_messages.ProtoItem, scenarioResult *result.ScenarioResult) {
 	var itemsIndex int
 	for _, protoItem := range protoItems {
 		if protoItem.GetItemType() == gauge_messages.ProtoItem_Concept || protoItem.GetItemType() == gauge_messages.ProtoItem_Step {
-			failed, recoverable := e.executeItem(items[itemsIndex], protoItem, scenarioResult)
-			itemsIndex++
-			if failed {
-				scenarioResult.SetFailure()
-				if !recoverable {
-					return
+			var failed, recoverable bool
+			if e.canExecuteManually() {
+				if stepErr, ok := e.errMap.StepErrs[items[itemsIndex]]; ok && stepErr.IsUnimplementedError() {
+					fmt.Printf("\n\nHybrid execution of: %s\n", items[itemsIndex].GetLineText())
+					fmt.Println("Enter [P] for passed step, [F] for failed step (default).")
+					input := "F"
+					fmt.Scanln(&input)
+					failed = input == "F"
+					if failed {
+						fmt.Println("Halt scenario execution? (Y/N)")
+						fmt.Scanln(&input)
+						recoverable = input == "Y"
+					}
+					fmt.Println("Enter any additional messages, <ctrl-]> to exit")
+					scn := bufio.NewScanner(os.Stdin)
+					var messages []string
+					for scn.Scan() {
+						line := scn.Text()
+						messages = append(messages, line)
+						if len(line) > 0 && line[len(line)-1] == '\x1D' {
+							line = line[0 : len(line)-1]
+							break
+						}
+					}
+					executionResult := &gauge_messages.ProtoExecutionResult{Message: messages,
+						Failed:           proto.Bool(failed),
+						RecoverableError: proto.Bool(recoverable),
+						ExecutionTime:    proto.Int64(0)}
+					protoItem.GetStep().StepExecutionResult = &gauge_messages.ProtoStepExecutionResult{
+						ExecutionResult: executionResult, Skipped: proto.Bool(false)}
+				} else {
+					failed, recoverable = e.executeItem(items[itemsIndex], protoItem, scenarioResult)
+				}
+				itemsIndex++
+				if failed {
+					scenarioResult.SetFailure()
+					if !recoverable {
+						return
+					}
 				}
 			}
 		}
 	}
 }
 
-func (e *scenarioExecutor) executeItem(item *gauge.Step, protoItem *gauge_messages.ProtoItem, scenarioResult *result.ScenarioResult) (bool, bool) {
-	var failed, recoverable bool
+func (e *scenarioExecutor) executeItem(item *gauge.Step, protoItem *gauge_messages.ProtoItem, scenarioResult *result.ScenarioResult) (failed bool, recoverable bool) {
 	if protoItem.GetItemType() == gauge_messages.ProtoItem_Concept {
 		protoConcept := protoItem.GetConcept()
 		res := e.executeConcept(item, protoConcept, scenarioResult)
 		failed = res.GetFailed()
 		recoverable = res.GetRecoverable()
-
 	} else if protoItem.GetItemType() == gauge_messages.ProtoItem_Step {
 		se := &stepExecutor{runner: e.runner, pluginHandler: e.pluginHandler, currentExecutionInfo: e.currentExecutionInfo, stream: e.stream}
 		res := se.executeStep(item, protoItem.GetStep())
@@ -165,7 +211,7 @@ func (e *scenarioExecutor) executeItem(item *gauge.Step, protoItem *gauge_messag
 		failed = res.GetFailed()
 		recoverable = res.ProtoStepExecResult().GetExecutionResult().GetRecoverableError()
 	}
-	return failed, recoverable
+	return
 }
 
 func (e *scenarioExecutor) executeConcept(item *gauge.Step, protoConcept *gauge_messages.ProtoConcept, scenarioResult *result.ScenarioResult) *result.ConceptResult {
@@ -197,8 +243,7 @@ func setStepFailure(executionInfo *gauge_messages.ExecutionInfo) {
 	executionInfo.CurrentStep.IsFailed = proto.Bool(true)
 }
 
-func getParameters(fragments []*gauge_messages.Fragment) []*gauge_messages.Parameter {
-	var parameters []*gauge_messages.Parameter
+func getParameters(fragments []*gauge_messages.Fragment) (parameters []*gauge_messages.Parameter) {
 	for _, fragment := range fragments {
 		if fragment.GetFragmentType() == gauge_messages.Fragment_Parameter {
 			parameters = append(parameters, fragment.GetParameter())

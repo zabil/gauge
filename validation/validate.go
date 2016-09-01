@@ -77,6 +77,10 @@ func (s *StepValidationError) Error() string {
 	return fmt.Sprintf("%s:%d: %s => '%s'", s.fileName, s.step.LineNo, s.message, s.step.GetLineText())
 }
 
+func (s *StepValidationError) IsUnimplementedError() bool {
+	return *s.errorType == gauge_messages.StepValidateResponse_STEP_IMPLEMENTATION_NOT_FOUND
+}
+
 func Validate(args []string) {
 	if len(args) == 0 {
 		args = append(args, common.SpecsDirectoryName)
